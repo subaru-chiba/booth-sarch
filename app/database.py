@@ -21,6 +21,7 @@ async def init_db():
                 shop_name TEXT,
                 shop_url TEXT,
                 image_url TEXT,
+                category TEXT,
                 added_at TEXT NOT NULL DEFAULT (datetime('now'))
             );
 
@@ -36,4 +37,10 @@ async def init_db():
             CREATE INDEX IF NOT EXISTS idx_snapshots_product_id ON snapshots(product_id);
             CREATE INDEX IF NOT EXISTS idx_snapshots_fetched_at ON snapshots(fetched_at);
         """)
+        # migration: add category column if it doesn't exist yet
+        try:
+            await db.execute("ALTER TABLE products ADD COLUMN category TEXT")
+            await db.commit()
+        except Exception:
+            pass
         await db.commit()

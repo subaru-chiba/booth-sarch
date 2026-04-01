@@ -31,6 +31,7 @@ class ProductInfo:
     sold_count: Optional[int]
     wish_count: Optional[int]
     price: Optional[int]
+    category: Optional[str]
 
 
 def parse_item_id(url_or_id: str) -> int:
@@ -66,6 +67,15 @@ async def fetch_product(item_id: int) -> ProductInfo:
     images = data.get("images") or []
     image_url = images[0].get("original") if images else None
 
+    # category: may be a single object or a list
+    raw_cat = data.get("category") or data.get("categories")
+    if isinstance(raw_cat, list):
+        category = raw_cat[0].get("name") if raw_cat else None
+    elif isinstance(raw_cat, dict):
+        category = raw_cat.get("name")
+    else:
+        category = None
+
     return ProductInfo(
         booth_item_id=item_id,
         name=name,
@@ -75,6 +85,7 @@ async def fetch_product(item_id: int) -> ProductInfo:
         sold_count=sold_count,
         wish_count=wish_count,
         price=price,
+        category=category,
     )
 
 

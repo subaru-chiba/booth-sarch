@@ -1,10 +1,11 @@
 from contextlib import asynccontextmanager
 from typing import Optional
 import json
+from urllib.parse import urlencode
 
 import aiosqlite
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from fastapi import FastAPI, Form, HTTPException, Request
+from fastapi import FastAPI, Form, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -14,6 +15,7 @@ from .scraper import fetch_product, parse_item_id
 
 scheduler = AsyncIOScheduler()
 templates = Jinja2Templates(directory="templates")
+templates.env.filters["urlencode"] = lambda v: urlencode({"q": v})[3:]  # strip "q="
 
 
 @asynccontextmanager
@@ -47,9 +49,9 @@ async def refresh_all_products():
                     (row["id"], info.sold_count, info.wish_count, info.price),
                 )
                 await db.execute(
-                    """UPDATE products SET name=?, shop_name=?, shop_url=?, image_url=?
+                    """UPDATE products SET name=?, shop_name=?, shop_url=?, image_url=?, category=?
                        WHERE id=?""",
-                    (info.name, info.shop_name, info.shop_url, info.image_url, row["id"]),
+                    (info.name, info.shop_name, info.shop_url, info.image_url, info.category, row["id"]),
                 )
             except Exception:
                 pass
@@ -63,24 +65,71 @@ async def refresh_all_products():
 # ---------------------------------------------------------------------------
 
 @app.get("/", response_class=HTMLResponse)
-async def index(request: Request):
+async def index(
+    request: Request,
+    category: Optional[str] = Query(default=None),
+    sort: str = Query(default="sold_30d"),
+):
     db = await get_db()
     try:
-        cursor = await db.execute("""
+        # All distinct categories for filter tabs
+        cursor = await db.execute(
+            "SELECT DISTINCT category FROM products WHERE category IS NOT NULL ORDER BY category"
+        )
+        categories = [row[0] for row in await cursor.fetchall()]
+
+        # Build main query:
+        # sold_30d = latest sold_count - oldest sold_count within the past 30 days
+        # (falls back to oldest available snapshot when no 30-day-old data exists)
+        query = """
             SELECT
-                p.id, p.booth_item_id, p.name, p.shop_name, p.image_url,
-                s.sold_count, s.wish_count, s.price, s.fetched_at
+                p.id, p.booth_item_id, p.name, p.shop_name, p.image_url, p.category,
+                s_latest.sold_count,
+                s_latest.wish_count,
+                s_latest.price,
+                s_latest.fetched_at,
+                (
+                    s_latest.sold_count - COALESCE(
+                        (SELECT sold_count FROM snapshots
+                         WHERE product_id = p.id
+                           AND fetched_at <= datetime('now', '-30 days')
+                         ORDER BY fetched_at DESC LIMIT 1),
+                        (SELECT sold_count FROM snapshots
+                         WHERE product_id = p.id
+                         ORDER BY fetched_at ASC LIMIT 1)
+                    )
+                ) AS sold_30d
             FROM products p
-            LEFT JOIN snapshots s ON s.id = (
+            LEFT JOIN snapshots s_latest ON s_latest.id = (
                 SELECT id FROM snapshots WHERE product_id = p.id ORDER BY fetched_at DESC LIMIT 1
             )
-            ORDER BY p.added_at DESC
-        """)
+        """
+
+        params: list = []
+        if category:
+            query += " WHERE p.category = ?"
+            params.append(category)
+
+        order = {
+            "sold_30d": "sold_30d DESC NULLS LAST",
+            "sold_total": "s_latest.sold_count DESC NULLS LAST",
+            "wish": "s_latest.wish_count DESC NULLS LAST",
+            "added": "p.added_at DESC",
+        }.get(sort, "sold_30d DESC NULLS LAST")
+        query += f" ORDER BY {order}"
+
+        cursor = await db.execute(query, params)
         products = [dict(row) for row in await cursor.fetchall()]
     finally:
         await db.close()
 
-    return templates.TemplateResponse("index.html", {"request": request, "products": products})
+    return templates.TemplateResponse("index.html", {
+        "request": request,
+        "products": products,
+        "categories": categories,
+        "current_category": category,
+        "current_sort": sort,
+    })
 
 
 @app.post("/products/add")
@@ -98,9 +147,9 @@ async def add_product(url_or_id: str = Form(...)):
     db = await get_db()
     try:
         await db.execute(
-            """INSERT OR IGNORE INTO products (booth_item_id, name, shop_name, shop_url, image_url)
-               VALUES (?, ?, ?, ?, ?)""",
-            (info.booth_item_id, info.name, info.shop_name, info.shop_url, info.image_url),
+            """INSERT OR IGNORE INTO products (booth_item_id, name, shop_name, shop_url, image_url, category)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (info.booth_item_id, info.name, info.shop_name, info.shop_url, info.image_url, info.category),
         )
         cursor = await db.execute(
             "SELECT id FROM products WHERE booth_item_id = ?", (item_id,)
@@ -181,9 +230,9 @@ async def refresh_product(item_id: int):
             (product_id, info.sold_count, info.wish_count, info.price),
         )
         await db.execute(
-            """UPDATE products SET name=?, shop_name=?, shop_url=?, image_url=?
+            """UPDATE products SET name=?, shop_name=?, shop_url=?, image_url=?, category=?
                WHERE id=?""",
-            (info.name, info.shop_name, info.shop_url, info.image_url, product_id),
+            (info.name, info.shop_name, info.shop_url, info.image_url, info.category, product_id),
         )
         await db.commit()
     finally:

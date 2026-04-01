@@ -102,6 +102,57 @@ h2 {
 .btn-secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
 .btn-danger   { background: #c0392b; color: #fff; }
 
+/* --- List header: title + sort bar --- */
+.list-header {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.list-header h2 { margin-bottom: 0; }
+
+.sort-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+.sort-label { font-size: 12px; color: var(--text-muted); }
+
+.sort-btn {
+  font-size: 12px;
+  padding: 3px 10px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  background: var(--surface2);
+  transition: border-color 0.15s, color 0.15s;
+}
+.sort-btn:hover { color: var(--text); border-color: var(--accent2); opacity: 1; }
+.sort-btn.active { color: var(--text); border-color: var(--accent2); background: #1a2a3a; }
+
+/* --- Category filter tabs --- */
+.category-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.cat-tab {
+  font-size: 12px;
+  padding: 4px 12px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  background: var(--surface2);
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.cat-tab:hover { color: var(--text); border-color: var(--accent2); opacity: 1; }
+.cat-tab.active { background: var(--accent2); color: #fff; border-color: var(--accent2); }
+
 /* --- Product grid --- */
 .count { font-weight: 400; font-size: 13px; color: var(--text-muted); }
 
@@ -144,6 +195,15 @@ h2 {
 }
 
 .product-info { padding: 12px; }
+.product-category {
+  display: inline-block;
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: #1e2a3a;
+  color: var(--accent2);
+  margin-bottom: 4px;
+}
 .product-name { font-weight: 600; font-size: 13px; margin-bottom: 4px; }
 .shop-name { color: var(--text-muted); font-size: 12px; margin-bottom: 8px; }
 
@@ -155,9 +215,10 @@ h2 {
   border-radius: 4px;
   font-weight: 600;
 }
-.stat.price  { background: #2a1f1f; color: #f0a060; }
-.stat.sold   { background: #1f2a1f; color: var(--green); }
-.stat.wish   { background: #1f1f2a; color: var(--accent); }
+.stat.price    { background: #2a1f1f; color: #f0a060; }
+.stat.sold-30d { background: #1f3020; color: #7fffb0; border: 1px solid #3a6040; }
+.stat.sold     { background: #1f2a1f; color: var(--green); }
+.stat.wish     { background: #1f1f2a; color: var(--accent); }
 
 .fetched-at { font-size: 11px; color: var(--text-muted); }
 

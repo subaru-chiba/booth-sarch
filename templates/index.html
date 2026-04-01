@@ -17,7 +17,36 @@
 </section>
 
 <section class="products-section">
-  <h2>トラッキング中の商品 <span class="count">({{ products | length }}件)</span></h2>
+  <div class="list-header">
+    <h2>トラッキング中の商品 <span class="count">({{ products | length }}件)</span></h2>
+
+    {# ---- Sort controls ---- #}
+    <div class="sort-bar">
+      <span class="sort-label">並び替え:</span>
+      {% set sort_options = [
+        ("sold_30d",    "直近1ヶ月 売上"),
+        ("sold_total",  "累計売上"),
+        ("wish",        "ウィッシュ数"),
+        ("added",       "登録日"),
+      ] %}
+      {% for val, label in sort_options %}
+      <a href="?sort={{ val }}{% if current_category %}&category={{ current_category | urlencode }}{% endif %}"
+         class="sort-btn {% if current_sort == val %}active{% endif %}">{{ label }}</a>
+      {% endfor %}
+    </div>
+  </div>
+
+  {# ---- Category filter tabs ---- #}
+  {% if categories %}
+  <div class="category-tabs">
+    <a href="?sort={{ current_sort }}"
+       class="cat-tab {% if not current_category %}active{% endif %}">すべて</a>
+    {% for cat in categories %}
+    <a href="?sort={{ current_sort }}&category={{ cat | urlencode }}"
+       class="cat-tab {% if current_category == cat %}active{% endif %}">{{ cat }}</a>
+    {% endfor %}
+  </div>
+  {% endif %}
 
   {% if products %}
   <div class="product-grid">
@@ -31,6 +60,9 @@
         {% endif %}
       </div>
       <div class="product-info">
+        {% if p.category %}
+        <div class="product-category">{{ p.category }}</div>
+        {% endif %}
         <div class="product-name">{{ p.name }}</div>
         {% if p.shop_name %}
         <div class="shop-name">{{ p.shop_name }}</div>
@@ -39,8 +71,11 @@
           {% if p.price is not none %}
           <span class="stat price">¥{{ "{:,}".format(p.price) }}</span>
           {% endif %}
+          {% if p.sold_30d is not none and p.sold_30d > 0 %}
+          <span class="stat sold-30d">30日: +{{ p.sold_30d }}件</span>
+          {% endif %}
           {% if p.sold_count is not none %}
-          <span class="stat sold">売上: {{ p.sold_count }}件</span>
+          <span class="stat sold">計: {{ p.sold_count }}件</span>
           {% endif %}
           {% if p.wish_count is not none %}
           <span class="stat wish">♡ {{ p.wish_count }}</span>
@@ -54,7 +89,13 @@
     {% endfor %}
   </div>
   {% else %}
-  <p class="empty">まだ商品が登録されていません。上のフォームからBoothの商品URLまたはIDを入力してください。</p>
+  <p class="empty">
+    {% if current_category %}
+    「{{ current_category }}」カテゴリの商品が見つかりません。
+    {% else %}
+    まだ商品が登録されていません。上のフォームからBoothの商品URLまたはIDを入力してください。
+    {% endif %}
+  </p>
   {% endif %}
 </section>
 
