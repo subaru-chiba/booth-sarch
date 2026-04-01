@@ -1,7 +1,6 @@
 from contextlib import asynccontextmanager
 from typing import Optional
 import json
-from urllib.parse import urlencode
 
 import aiosqlite
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -15,7 +14,6 @@ from .scraper import fetch_product, parse_item_id
 
 scheduler = AsyncIOScheduler()
 templates = Jinja2Templates(directory="templates")
-templates.env.filters["urlencode"] = lambda v: urlencode({"q": v})[3:]  # strip "q="
 
 
 @asynccontextmanager
@@ -123,8 +121,7 @@ async def index(
     finally:
         await db.close()
 
-    return templates.TemplateResponse("index.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "index.html", {
         "products": products,
         "categories": categories,
         "current_category": category,
@@ -196,8 +193,7 @@ async def product_detail(request: Request, item_id: int):
     chart_wish = [s["wish_count"] for s in snapshots]
     chart_price = [s["price"] for s in snapshots]
 
-    return templates.TemplateResponse("product.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "product.html", {
         "product": product,
         "snapshots": snapshots,
         "chart_labels": json.dumps(chart_labels),
