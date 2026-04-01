@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+{% block title %}{{ product.name }} - Booth トレンド{% endblock %}
+{% block content %}
+
+<div class="product-detail">
+  <div class="detail-header">
+    <a href="/" class="back-link">← 一覧に戻る</a>
+    <div class="detail-title-row">
+      {% if product.image_url %}
+      <img src="{{ product.image_url }}" alt="{{ product.name }}" class="detail-image">
+      {% endif %}
+      <div class="detail-meta">
+        <h1>{{ product.name }}</h1>
+        {% if product.shop_name %}
+        <div class="shop-link">
+          {% if product.shop_url %}
+          <a href="{{ product.shop_url }}" target="_blank" rel="noopener">{{ product.shop_name }}</a>
+          {% else %}
+          {{ product.shop_name }}
+          {% endif %}
+        </div>
+        {% endif %}
+        <div class="booth-link">
+          <a href="https://booth.pm/ja/items/{{ product.booth_item_id }}" target="_blank" rel="noopener">
+            Boothで見る →
+          </a>
+        </div>
+        {% if snapshots %}
+        {% set latest = snapshots[-1] %}
+        <div class="latest-stats">
+          {% if latest.price is not none %}
+          <span class="stat price">¥{{ "{:,}".format(latest.price) }}</span>
+          {% endif %}
+          {% if latest.sold_count is not none %}
+          <span class="stat sold">売上: {{ latest.sold_count }}件</span>
+          {% endif %}
+          {% if latest.wish_count is not none %}
+          <span class="stat wish">♡ {{ latest.wish_count }}</span>
+          {% endif %}
+        </div>
+        {% endif %}
+      </div>
+    </div>
+    <div class="detail-actions">
+      <form method="post" action="/products/{{ product.booth_item_id }}/refresh" style="display:inline">
+        <button type="submit" class="btn btn-secondary">今すぐ更新</button>
+      </form>
+      <form method="post" action="/products/{{ product.booth_item_id }}/delete" style="display:inline"
+            onsubmit="return confirm('この商品のトラッキングを停止しますか？')">
+        <button type="submit" class="btn btn-danger">削除</button>
+      </form>
+    </div>
+  </div>
+
+  {% if snapshots | length >= 2 %}
+  <div class="charts">
+    <div class="chart-box">
+      <h2>売上数トレンド</h2>
+      <canvas id="soldChart"></canvas>
+    </div>
+    <div class="chart-box">
+      <h2>ウィッシュリスト数トレンド</h2>
+      <canvas id="wishChart"></canvas>
+    </div>
+    <div class="chart-box">
+      <h2>価格推移</h2>
+      <canvas id="priceChart"></canvas>
+    </div>
+  </div>
+  {% elif snapshots | length == 1 %}
+  <p class="info-msg">トレンドグラフは2件以上のデータが必要です。「今すぐ更新」ボタンでデータを追加してください。</p>
+  {% else %}
+  <p class="info-msg">データがありません。</p>
+  {% endif %}
+
+  <div class="snapshots-table-section">
+    <h2>取得履歴</h2>
+    {% if snapshots %}
+    <table class="snapshots-table">
+      <thead>
+        <tr>
+          <th>取得日時</th>
+          <th>売上数</th>
+          <th>ウィッシュ数</th>
+          <th>価格</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in snapshots | reverse %}
+        <tr>
+          <td>{{ s.fetched_at[:16] }}</td>
+          <td>{{ s.sold_count if s.sold_count is not none else "—" }}</td>
+          <td>{{ s.wish_count if s.wish_count is not none else "—" }}</td>
+          <td>{% if s.price is not none %}¥{{ "{:,}".format(s.price) }}{% else %}—{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p>データがありません。</p>
+    {% endif %}
+  </div>
+</div>
+
+<script>
+const labels = {{ chart_labels | safe }};
+const soldData = {{ chart_sold | safe }};
+const wishData = {{ chart_wish | safe }};
+const priceData = {{ chart_price | safe }};
+
+const commonOptions = {
+  responsive: true,
+  interaction: { mode: 'index', intersect: false },
+  plugins: {
+    legend: { display: false },
+    tooltip: { callbacks: { title: (items) => items[0].label.slice(0, 16) } },
+  },
+  scales: {
+    x: {
+      ticks: {
+        maxTicksLimit: 10,
+        callback: (val, i) => labels[i] ? labels[i].slice(0, 10) : '',
+      },
+    },
+  },
+};
+
+function makeChart(id, data, label, color) {
+  const ctx = document.getElementById(id);
+  if (!ctx) return;
+  // filter out null values for display
+  const hasData = data.some(v => v !== null);
+  if (!hasData) {
+    ctx.parentElement.style.display = 'none';
+    return;
+  }
+  new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label,
+        data,
+        borderColor: color,
+        backgroundColor: color + '22',
+        fill: true,
+        tension: 0.3,
+        pointRadius: 4,
+        spanGaps: true,
+      }],
+    },
+    options: commonOptions,
+  });
+}
+
+makeChart('soldChart', soldData, '売上数', '#e85d75');
+makeChart('wishChart', wishData, 'ウィッシュリスト', '#5d9ee8');
+makeChart('priceChart', priceData, '価格 (¥)', '#5de8a1');
+</script>
+{% endblock %}

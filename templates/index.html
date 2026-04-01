@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Booth 売れ行きトレンド{% endblock %}
+{% block content %}
+
+<section class="add-form-section">
+  <h2>商品を追加</h2>
+  <form method="post" action="/products/add" class="add-form">
+    <input
+      type="text"
+      name="url_or_id"
+      placeholder="Booth URL または 商品ID (例: https://booth.pm/ja/items/1234567)"
+      required
+      class="url-input"
+    >
+    <button type="submit" class="btn btn-primary">追加</button>
+  </form>
+</section>
+
+<section class="products-section">
+  <h2>トラッキング中の商品 <span class="count">({{ products | length }}件)</span></h2>
+
+  {% if products %}
+  <div class="product-grid">
+    {% for p in products %}
+    <a href="/products/{{ p.booth_item_id }}" class="product-card">
+      <div class="product-image">
+        {% if p.image_url %}
+        <img src="{{ p.image_url }}" alt="{{ p.name }}" loading="lazy">
+        {% else %}
+        <div class="no-image">No Image</div>
+        {% endif %}
+      </div>
+      <div class="product-info">
+        <div class="product-name">{{ p.name }}</div>
+        {% if p.shop_name %}
+        <div class="shop-name">{{ p.shop_name }}</div>
+        {% endif %}
+        <div class="product-stats">
+          {% if p.price is not none %}
+          <span class="stat price">¥{{ "{:,}".format(p.price) }}</span>
+          {% endif %}
+          {% if p.sold_count is not none %}
+          <span class="stat sold">売上: {{ p.sold_count }}件</span>
+          {% endif %}
+          {% if p.wish_count is not none %}
+          <span class="stat wish">♡ {{ p.wish_count }}</span>
+          {% endif %}
+        </div>
+        {% if p.fetched_at %}
+        <div class="fetched-at">最終取得: {{ p.fetched_at[:16] }}</div>
+        {% endif %}
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="empty">まだ商品が登録されていません。上のフォームからBoothの商品URLまたはIDを入力してください。</p>
+  {% endif %}
+</section>
+
+{% endblock %}
