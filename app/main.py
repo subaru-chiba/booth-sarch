@@ -1,11 +1,15 @@
 from contextlib import asynccontextmanager
 from typing import Optional
+import io
 import json
+from datetime import datetime
 
 import aiosqlite
+import openpyxl
+from openpyxl.styles import Font, PatternFill, Alignment
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fastapi import FastAPI, Form, HTTPException, Query, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -267,3 +271,95 @@ async def api_snapshots(item_id: int):
         return [dict(r) for r in await cursor.fetchall()]
     finally:
         await db.close()
+
+
+@app.get("/export/xlsx")
+async def export_xlsx(category: Optional[str] = Query(default=None)):
+    db = await get_db()
+    try:
+        query = """
+            SELECT
+                p.booth_item_id, p.name, p.category, p.shop_name,
+                s_latest.price,
+                s_latest.sold_count,
+                s_latest.wish_count,
+                s_latest.fetched_at,
+                (
+                    s_latest.sold_count - COALESCE(
+                        (SELECT sold_count FROM snapshots
+                         WHERE product_id = p.id
+                           AND fetched_at <= datetime('now', '-30 days')
+                         ORDER BY fetched_at DESC LIMIT 1),
+                        (SELECT sold_count FROM snapshots
+                         WHERE product_id = p.id
+                         ORDER BY fetched_at ASC LIMIT 1)
+                    )
+                ) AS sold_30d
+            FROM products p
+            LEFT JOIN snapshots s_latest ON s_latest.id = (
+                SELECT id FROM snapshots WHERE product_id = p.id ORDER BY fetched_at DESC LIMIT 1
+            )
+        """
+        params: list = []
+        if category:
+            query += " WHERE p.category = ?"
+            params.append(category)
+        query += " ORDER BY sold_30d DESC NULLS LAST"
+
+        cursor = await db.execute(query, params)
+        rows = [dict(r) for r in await cursor.fetchall()]
+    finally:
+        await db.close()
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "売れ行きトレンド"
+
+    # Header style
+    header_fill = PatternFill(fill_type="solid", fgColor="1a2a3a")
+    header_font = Font(bold=True, color="5d9ee8")
+
+    headers = [
+        ("商品ID",       12),
+        ("商品名",       40),
+        ("カテゴリ",     18),
+        ("ショップ名",   22),
+        ("価格",         10),
+        ("直近30日売上", 14),
+        ("累計売上",     12),
+        ("ウィッシュ数", 12),
+        ("最終取得日時", 20),
+    ]
+    for col, (label, width) in enumerate(headers, 1):
+        cell = ws.cell(row=1, column=col, value=label)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = Alignment(horizontal="center")
+        ws.column_dimensions[cell.column_letter].width = width
+
+    for row in rows:
+        ws.append([
+            row["booth_item_id"],
+            row["name"],
+            row["category"] or "",
+            row["shop_name"] or "",
+            row["price"],
+            row["sold_30d"],
+            row["sold_count"],
+            row["wish_count"],
+            row["fetched_at"][:16] if row["fetched_at"] else "",
+        ])
+
+    # Freeze header row
+    ws.freeze_panes = "A2"
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+
+    filename = f"booth_trend_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx"
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )

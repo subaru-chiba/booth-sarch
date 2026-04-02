@@ -101,6 +101,7 @@ h2 {
 .btn-primary  { background: var(--accent2); color: #fff; }
 .btn-secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
 .btn-danger   { background: #c0392b; color: #fff; }
+.btn-export   { background: #2a3a2a; color: var(--green); border: 1px solid #3a6040; font-size: 13px; }
 
 /* --- List header: title + sort bar --- */
 .list-header {

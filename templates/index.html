@@ -20,6 +20,11 @@
   <div class="list-header">
     <h2>トラッキング中の商品 <span class="count">({{ products | length }}件)</span></h2>
 
+    <a href="/export/xlsx{% if current_category %}?category={{ current_category | urlencode }}{% endif %}"
+       class="btn btn-export" download>
+      ⬇ Excel出力
+    </a>
+
     {# ---- Sort controls ---- #}
     <div class="sort-bar">
       <span class="sort-label">並び替え:</span>
