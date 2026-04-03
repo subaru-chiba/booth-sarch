@@ -34,13 +34,77 @@ header {
   height: 52px;
   display: flex;
   align-items: center;
+  gap: 24px;
 }
 
 .site-title {
   font-size: 18px;
   font-weight: 700;
   color: var(--text);
+  white-space: nowrap;
 }
+
+header nav { display: flex; gap: 16px; }
+header nav a { font-size: 13px; color: var(--text-muted); }
+header nav a:hover { color: var(--text); opacity: 1; }
+
+/* --- Home page --- */
+.hero {
+  text-align: center;
+  padding: 40px 0 28px;
+}
+.hero h1 { font-size: 28px; margin-bottom: 8px; }
+.hero p  { color: var(--text-muted); font-size: 15px; }
+
+.category-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 12px;
+  margin-bottom: 32px;
+}
+
+.cat-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  transition: border-color 0.2s, transform 0.15s;
+}
+.cat-card:hover { border-color: var(--accent2); transform: translateY(-2px); opacity: 1; }
+.cat-card--all  { border-style: dashed; }
+.cat-emoji { font-size: 28px; }
+.cat-name  { font-size: 12px; font-weight: 600; text-align: center; color: var(--text); }
+
+.home-links { text-align: center; }
+
+/* --- Browse page header --- */
+.browse-header { margin-bottom: 20px; }
+.browse-header h1 { font-size: 22px; margin: 8px 0 16px; }
+.browse-controls { display: flex; flex-direction: column; gap: 10px; }
+
+/* --- Card actions --- */
+.card-actions { padding: 0 12px 12px; }
+.btn-track   { width: 100%; background: var(--surface2); color: var(--accent2); border: 1px solid var(--accent2); font-size: 12px; padding: 6px; }
+.btn-tracked { display: block; width: 100%; text-align: center; background: #1f3020; color: var(--green); border: 1px solid #3a6040; font-size: 12px; padding: 6px; border-radius: var(--radius); }
+
+/* --- Pagination --- */
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  margin-top: 28px;
+}
+.page-btn  { background: var(--surface2); border: 1px solid var(--border); padding: 7px 16px; border-radius: var(--radius); font-size: 13px; }
+.page-btn:hover { border-color: var(--accent2); opacity: 1; }
+.page-info { color: var(--text-muted); font-size: 13px; }
+
+/* --- Error --- */
+.error-msg { color: #e07070; background: #2a1a1a; border: 1px solid #5a2a2a; border-radius: var(--radius); padding: 14px; margin-bottom: 16px; }
 
 main {
   max-width: 1100px;

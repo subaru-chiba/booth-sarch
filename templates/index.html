@@ -1,107 +1,30 @@
 {% extends "base.html" %}
-{% block title %}Booth 売れ行きトレンド{% endblock %}
+{% block title %}Booth 売れ筋トレンド{% endblock %}
 {% block content %}
 
-<section class="add-form-section">
-  <h2>商品を追加</h2>
-  <form method="post" action="/products/add" class="add-form">
-    <input
-      type="text"
-      name="url_or_id"
-      placeholder="Booth URL または 商品ID (例: https://booth.pm/ja/items/1234567)"
-      required
-      class="url-input"
-    >
-    <button type="submit" class="btn btn-primary">追加</button>
-  </form>
-</section>
+<div class="hero">
+  <h1>Booth 売れ筋トレンド</h1>
+  <p>カテゴリを選んで、今売れている商品をチェックしよう</p>
+</div>
 
-<section class="products-section">
-  <div class="list-header">
-    <h2>トラッキング中の商品 <span class="count">({{ products | length }}件)</span></h2>
-
-    <a href="/export/xlsx{% if current_category %}?category={{ current_category | urlencode }}{% endif %}"
-       class="btn btn-export" download>
-      ⬇ Excel出力
-    </a>
-
-    {# ---- Sort controls ---- #}
-    <div class="sort-bar">
-      <span class="sort-label">並び替え:</span>
-      {% set sort_options = [
-        ("sold_30d",    "直近1ヶ月 売上"),
-        ("sold_total",  "累計売上"),
-        ("wish",        "ウィッシュ数"),
-        ("added",       "登録日"),
-      ] %}
-      {% for val, label in sort_options %}
-      <a href="?sort={{ val }}{% if current_category %}&category={{ current_category | urlencode }}{% endif %}"
-         class="sort-btn {% if current_sort == val %}active{% endif %}">{{ label }}</a>
-      {% endfor %}
-    </div>
-  </div>
-
-  {# ---- Category filter tabs ---- #}
-  {% if categories %}
-  <div class="category-tabs">
-    <a href="?sort={{ current_sort }}"
-       class="cat-tab {% if not current_category %}active{% endif %}">すべて</a>
-    {% for cat in categories %}
-    <a href="?sort={{ current_sort }}&category={{ cat | urlencode }}"
-       class="cat-tab {% if current_category == cat %}active{% endif %}">{{ cat }}</a>
-    {% endfor %}
-  </div>
-  {% endif %}
-
-  {% if products %}
-  <div class="product-grid">
-    {% for p in products %}
-    <a href="/products/{{ p.booth_item_id }}" class="product-card">
-      <div class="product-image">
-        {% if p.image_url %}
-        <img src="{{ p.image_url }}" alt="{{ p.name }}" loading="lazy">
-        {% else %}
-        <div class="no-image">No Image</div>
-        {% endif %}
-      </div>
-      <div class="product-info">
-        {% if p.category %}
-        <div class="product-category">{{ p.category }}</div>
-        {% endif %}
-        <div class="product-name">{{ p.name }}</div>
-        {% if p.shop_name %}
-        <div class="shop-name">{{ p.shop_name }}</div>
-        {% endif %}
-        <div class="product-stats">
-          {% if p.price is not none %}
-          <span class="stat price">¥{{ "{:,}".format(p.price) }}</span>
-          {% endif %}
-          {% if p.sold_30d is not none and p.sold_30d > 0 %}
-          <span class="stat sold-30d">30日: +{{ p.sold_30d }}件</span>
-          {% endif %}
-          {% if p.sold_count is not none %}
-          <span class="stat sold">計: {{ p.sold_count }}件</span>
-          {% endif %}
-          {% if p.wish_count is not none %}
-          <span class="stat wish">♡ {{ p.wish_count }}</span>
-          {% endif %}
-        </div>
-        {% if p.fetched_at %}
-        <div class="fetched-at">最終取得: {{ p.fetched_at[:16] }}</div>
-        {% endif %}
-      </div>
-    </a>
-    {% endfor %}
-  </div>
+<div class="category-grid">
+  {% for cat in categories %}
+  {% if cat.id is not none %}
+  <a href="/browse?category_id={{ cat.id }}&sort=new" class="cat-card">
+    <span class="cat-emoji">{{ cat.emoji }}</span>
+    <span class="cat-name">{{ cat.name }}</span>
+  </a>
   {% else %}
-  <p class="empty">
-    {% if current_category %}
-    「{{ current_category }}」カテゴリの商品が見つかりません。
-    {% else %}
-    まだ商品が登録されていません。上のフォームからBoothの商品URLまたはIDを入力してください。
-    {% endif %}
-  </p>
+  <a href="/browse" class="cat-card cat-card--all">
+    <span class="cat-emoji">{{ cat.emoji }}</span>
+    <span class="cat-name">{{ cat.name }}</span>
+  </a>
   {% endif %}
-</section>
+  {% endfor %}
+</div>
+
+<div class="home-links">
+  <a href="/tracked" class="btn btn-secondary">📊 トラッキング中の商品</a>
+</div>
 
 {% endblock %}

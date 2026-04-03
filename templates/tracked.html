@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}トラッキング中の商品{% endblock %}
+{% block content %}
+
+<div class="browse-header">
+  <a href="/" class="back-link">← カテゴリ一覧</a>
+  <h1>トラッキング中の商品</h1>
+
+  <div class="browse-controls">
+    {# Category tabs #}
+    {% if categories %}
+    <div class="category-tabs">
+      <a href="/tracked?sort={{ current_sort }}"
+         class="cat-tab {% if not current_category %}active{% endif %}">すべて</a>
+      {% for cat in categories %}
+      <a href="/tracked?sort={{ current_sort }}&category={{ cat | urlencode }}"
+         class="cat-tab {% if current_category == cat %}active{% endif %}">{{ cat }}</a>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    {# Sort #}
+    <div class="sort-bar">
+      <span class="sort-label">並び替え:</span>
+      {% for val, label in [("sold_30d","直近30日"), ("sold_total","累計売上"), ("wish","ウィッシュ"), ("added","登録日")] %}
+      <a href="/tracked?sort={{ val }}{% if current_category %}&category={{ current_category | urlencode }}{% endif %}"
+         class="sort-btn {% if current_sort == val %}active{% endif %}">{{ label }}</a>
+      {% endfor %}
+    </div>
+
+    <a href="/export/xlsx{% if current_category %}?category={{ current_category | urlencode }}{% endif %}"
+       class="btn btn-export" download>⬇ Excel出力</a>
+  </div>
+</div>
+
+{% if products %}
+<div class="product-grid">
+  {% for p in products %}
+  <a href="/products/{{ p.booth_item_id }}" class="product-card product-card-link">
+    <div class="product-image">
+      {% if p.image_url %}
+      <img src="{{ p.image_url }}" alt="{{ p.name }}" loading="lazy">
+      {% else %}
+      <div class="no-image">No Image</div>
+      {% endif %}
+    </div>
+    <div class="product-info">
+      {% if p.category %}
+      <div class="product-category">{{ p.category }}</div>
+      {% endif %}
+      <div class="product-name">{{ p.name }}</div>
+      {% if p.shop_name %}
+      <div class="shop-name">{{ p.shop_name }}</div>
+      {% endif %}
+      <div class="product-stats">
+        {% if p.price is not none %}
+        <span class="stat price">¥{{ "{:,}".format(p.price) }}</span>
+        {% endif %}
+        {% if p.sold_30d is not none and p.sold_30d > 0 %}
+        <span class="stat sold-30d">30日: +{{ p.sold_30d }}件</span>
+        {% endif %}
+        {% if p.sold_count is not none %}
+        <span class="stat sold">計: {{ p.sold_count }}件</span>
+        {% endif %}
+        {% if p.wish_count is not none %}
+        <span class="stat wish">♡ {{ p.wish_count }}</span>
+        {% endif %}
+      </div>
+      {% if p.fetched_at %}
+      <div class="fetched-at">最終取得: {{ p.fetched_at[:16] }}</div>
+      {% endif %}
+    </div>
+  </a>
+  {% endfor %}
+</div>
+{% else %}
+<p class="empty">
+  {% if current_category %}「{{ current_category }}」カテゴリの商品がありません。
+  {% else %}まだトラッキング中の商品がありません。<a href="/browse">カテゴリを選んで</a>商品を追加してください。
+  {% endif %}
+</p>
+{% endif %}
+
+{% endblock %}

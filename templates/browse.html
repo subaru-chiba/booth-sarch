@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% block title %}{{ current_category_name }} - Booth 売れ筋{% endblock %}
+{% block content %}
+
+<div class="browse-header">
+  <a href="/" class="back-link">← カテゴリ一覧</a>
+  <h1>{{ current_category_name }}</h1>
+
+  <div class="browse-controls">
+    {# Category tabs #}
+    <div class="category-tabs">
+      <a href="/browse?sort={{ current_sort }}"
+         class="cat-tab {% if current_category_id is none %}active{% endif %}">すべて</a>
+      {% for cat in categories %}
+      {% if cat.id is not none %}
+      <a href="/browse?category_id={{ cat.id }}&sort={{ current_sort }}"
+         class="cat-tab {% if current_category_id == cat.id %}active{% endif %}">
+        {{ cat.emoji }} {{ cat.name }}
+      </a>
+      {% endif %}
+      {% endfor %}
+    </div>
+
+    {# Sort #}
+    <div class="sort-bar">
+      <span class="sort-label">並び替え:</span>
+      {% for val, label in sort_options %}
+      <a href="/browse?{% if current_category_id is not none %}category_id={{ current_category_id }}&{% endif %}sort={{ val }}"
+         class="sort-btn {% if current_sort == val %}active{% endif %}">{{ label }}</a>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+{% if error %}
+<p class="error-msg">データの取得に失敗しました: {{ error }}</p>
+{% endif %}
+
+{% if products %}
+<div class="product-grid">
+  {% for p in products %}
+  <div class="product-card">
+    <a href="https://booth.pm/ja/items/{{ p.booth_item_id }}" target="_blank" rel="noopener"
+       class="product-card-link">
+      <div class="product-image">
+        {% if p.image_url %}
+        <img src="{{ p.image_url }}" alt="{{ p.name }}" loading="lazy">
+        {% else %}
+        <div class="no-image">No Image</div>
+        {% endif %}
+      </div>
+      <div class="product-info">
+        {% if p.category %}
+        <div class="product-category">{{ p.category }}</div>
+        {% endif %}
+        <div class="product-name">{{ p.name }}</div>
+        {% if p.shop_name %}
+        <div class="shop-name">{{ p.shop_name }}</div>
+        {% endif %}
+        <div class="product-stats">
+          {% if p.price is not none %}
+          <span class="stat price">¥{{ "{:,}".format(p.price) }}</span>
+          {% endif %}
+          {% if p.sold_count is not none %}
+          <span class="stat sold">売上: {{ p.sold_count }}件</span>
+          {% endif %}
+          {% if p.wish_count is not none %}
+          <span class="stat wish">♡ {{ p.wish_count }}</span>
+          {% endif %}
+        </div>
+      </div>
+    </a>
+    {# Track button #}
+    <div class="card-actions">
+      {% if p.booth_item_id in tracked_ids %}
+      <a href="/products/{{ p.booth_item_id }}" class="btn btn-tracked">📈 トレンドを見る</a>
+      {% else %}
+      <form method="post" action="/track">
+        <input type="hidden" name="booth_item_id" value="{{ p.booth_item_id }}">
+        <input type="hidden" name="redirect_to"
+               value="/browse?{% if current_category_id is not none %}category_id={{ current_category_id }}&{% endif %}sort={{ current_sort }}&page={{ current_page }}">
+        <button type="submit" class="btn btn-track">＋ トラッキング</button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+{# Pagination #}
+{% if total_pages > 1 %}
+<div class="pagination">
+  {% if current_page > 1 %}
+  <a href="/browse?{% if current_category_id is not none %}category_id={{ current_category_id }}&{% endif %}sort={{ current_sort }}&page={{ current_page - 1 }}"
+     class="page-btn">← 前へ</a>
+  {% endif %}
+  <span class="page-info">{{ current_page }} / {{ total_pages }}</span>
+  {% if current_page < total_pages %}
+  <a href="/browse?{% if current_category_id is not none %}category_id={{ current_category_id }}&{% endif %}sort={{ current_sort }}&page={{ current_page + 1 }}"
+     class="page-btn">次へ →</a>
+  {% endif %}
+</div>
+{% endif %}
+
+{% else %}
+<p class="empty">商品が見つかりませんでした。</p>
+{% endif %}
+
+{% endblock %}
