@@ -6,21 +6,34 @@ Public endpoints:
   https://booth.pm/ja/search.json           — search / category browse
 """
 
+import json
 import re
 from dataclasses import dataclass, field
 from typing import Optional
 
 import httpx
+from bs4 import BeautifulSoup
 
 ITEM_API   = "https://booth.pm/ja/items/{item_id}.json"
 SEARCH_URL = "https://booth.pm/ja/search"
-HEADERS = {
+
+HEADERS_JSON = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    "Accept": "application/json, text/javascript, */*; q=0.01",
+    "Accept": "application/json, */*; q=0.01",
     "Accept-Language": "ja,en;q=0.9",
     "X-Requested-With": "XMLHttpRequest",
     "Referer": "https://booth.pm/",
 }
+
+HEADERS_HTML = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "ja,en;q=0.9",
+    "Referer": "https://booth.pm/",
+}
+
+# Keep backward compat
+HEADERS = HEADERS_JSON
 
 # ---------------------------------------------------------------------------
 # Category definitions
@@ -124,10 +137,10 @@ async def search_category(
     page: int = 1,
 ) -> tuple[list[ProductInfo], int]:
     """
-    Fetch products from Booth's search API using keyword search per category.
+    Fetch products from Booth search page.
+    Tries JSON API first, falls back to HTML scraping.
     Returns (products, total_pages).
     """
-    # Look up the query string for this category
     query = ""
     for cat in CATEGORIES:
         if cat["id"] == category_id:
@@ -136,16 +149,125 @@ async def search_category(
 
     params: dict = {"q": query, "sort": sort, "page": page}
 
-    async with httpx.AsyncClient(follow_redirects=True, timeout=15) as client:
-        resp = await client.get(SEARCH_URL, params=params, headers=HEADERS)
-        resp.raise_for_status()
-        # Booth returns JSON when X-Requested-With: XMLHttpRequest is set
-        data = resp.json()
+    async with httpx.AsyncClient(follow_redirects=True, timeout=20) as client:
+        # 1) Try JSON API
+        try:
+            resp = await client.get(SEARCH_URL, params=params, headers=HEADERS_JSON)
+            if resp.status_code == 200:
+                ct = resp.headers.get("content-type", "")
+                if "json" in ct:
+                    data = resp.json()
+                    items = data.get("items") or []
+                    total = int(data.get("total_pages") or data.get("pages") or 1)
+                    return [_parse_item_dict(i) for i in items], total
+        except Exception:
+            pass
 
-    items = data.get("items") or []
-    total = data.get("total_pages") or data.get("pages") or 1
-    products = [_parse_item_dict(item) for item in items]
-    return products, int(total)
+        # 2) Fall back: fetch HTML page and scrape
+        resp = await client.get(SEARCH_URL, params=params, headers=HEADERS_HTML)
+        resp.raise_for_status()
+
+    return _parse_search_html(resp.text)
+
+
+def _parse_search_html(html: str) -> tuple[list[ProductInfo], int]:
+    """Parse product cards from Booth's search result HTML."""
+    soup = BeautifulSoup(html, "html.parser")
+
+    # Try embedded JSON first (Rails / React initial state)
+    for script in soup.find_all("script"):
+        text = script.string or ""
+        for pattern in [
+            r'window\.__(?:STORE|STATE|INITIAL_STATE|INITIAL_DATA)__\s*=\s*(\{.+?\});',
+            r'"items"\s*:\s*(\[.+?\])',
+        ]:
+            m = re.search(pattern, text, re.DOTALL)
+            if m:
+                try:
+                    raw = json.loads(m.group(1))
+                    items_raw = raw if isinstance(raw, list) else (
+                        raw.get("items") or raw.get("search", {}).get("items") or []
+                    )
+                    if items_raw:
+                        products = [_parse_item_dict(i) for i in items_raw]
+                        return products, 1
+                except Exception:
+                    pass
+
+    # HTML structure scraping
+    products: list[ProductInfo] = []
+
+    # Booth item cards — try multiple selector patterns
+    selectors = [
+        "li[data-product]",
+        "div[data-product]",
+        ".item-card",
+        ".market-item",
+        "li.item",
+        "[data-item-id]",
+    ]
+    cards = []
+    for sel in selectors:
+        cards = soup.select(sel)
+        if cards:
+            break
+
+    for card in cards:
+        try:
+            # Item ID from data attributes or href
+            item_id = (
+                card.get("data-product")
+                or card.get("data-item-id")
+                or card.get("data-id")
+            )
+            if not item_id:
+                link = card.find("a", href=re.compile(r"/items/(\d+)"))
+                if link:
+                    m = re.search(r"/items/(\d+)", link["href"])
+                    item_id = m.group(1) if m else None
+            if not item_id:
+                continue
+
+            name_el = card.select_one(".item-name, .name, h2, h3, [class*='name']")
+            name = name_el.get_text(strip=True) if name_el else f"Item {item_id}"
+
+            price_el = card.select_one(".price, [class*='price']")
+            price_text = price_el.get_text(strip=True) if price_el else ""
+            price_num = int(re.sub(r"[^\d]", "", price_text)) if re.search(r"\d", price_text) else None
+
+            wish_el = card.select_one("[class*='wish'], [class*='heart']")
+            wish_text = wish_el.get_text(strip=True) if wish_el else ""
+            wish_num = int(re.sub(r"[^\d]", "", wish_text)) if re.search(r"\d", wish_text) else None
+
+            img_el = card.find("img")
+            image_url = img_el.get("data-src") or img_el.get("src") if img_el else None
+
+            shop_el = card.select_one(".shop-name, [class*='shop']")
+            shop_name = shop_el.get_text(strip=True) if shop_el else None
+
+            products.append(ProductInfo(
+                booth_item_id=int(item_id),
+                name=name,
+                shop_name=shop_name,
+                shop_url=None,
+                image_url=image_url,
+                sold_count=None,
+                wish_count=wish_num,
+                price=price_num,
+                category=None,
+            ))
+        except Exception:
+            continue
+
+    # Pagination
+    total = 1
+    pager = soup.select_one(".pagination, [class*='pager']")
+    if pager:
+        page_links = pager.find_all("a")
+        nums = [int(a.get_text(strip=True)) for a in page_links if a.get_text(strip=True).isdigit()]
+        total = max(nums) if nums else 1
+
+    return products, total
 
 
 def _parse_price(data: dict) -> Optional[int]:
