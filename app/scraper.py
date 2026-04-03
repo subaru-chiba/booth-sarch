@@ -25,17 +25,17 @@ HEADERS = {
 # IDs and slugs are taken from Booth's public browse URLs and item responses.
 # ---------------------------------------------------------------------------
 CATEGORIES: list[dict] = [
-    {"id": None,  "name": "すべて",         "emoji": "🏠"},
-    {"id": 208,   "name": "3Dモデル",        "emoji": "🎭"},
-    {"id": 4,     "name": "VRChat",          "emoji": "🥽"},
-    {"id": 7,     "name": "ゲーム",          "emoji": "🎮"},
-    {"id": 18,    "name": "Live2D",          "emoji": "✨"},
-    {"id": 43,    "name": "音楽・サウンド",  "emoji": "🎵"},
-    {"id": 6,     "name": "イラスト・漫画",  "emoji": "🎨"},
-    {"id": 28,    "name": "小説・シナリオ",  "emoji": "📖"},
-    {"id": 71,    "name": "フォント",        "emoji": "✍️"},
-    {"id": 53,    "name": "素材・ツール",    "emoji": "🔧"},
-    {"id": 9,     "name": "ハンドメイド",    "emoji": "🧵"},
+    {"id": None,      "name": "すべて",         "emoji": "🏠", "query": ""},
+    {"id": "3d",      "name": "3Dモデル",        "emoji": "🎭", "query": "3Dモデル"},
+    {"id": "vrchat",  "name": "VRChat",          "emoji": "🥽", "query": "VRChat"},
+    {"id": "game",    "name": "ゲーム",          "emoji": "🎮", "query": "ゲーム"},
+    {"id": "live2d",  "name": "Live2D",          "emoji": "✨", "query": "Live2D"},
+    {"id": "music",   "name": "音楽・サウンド",  "emoji": "🎵", "query": "音楽 サウンド"},
+    {"id": "illust",  "name": "イラスト・漫画",  "emoji": "🎨", "query": "イラスト"},
+    {"id": "novel",   "name": "小説・シナリオ",  "emoji": "📖", "query": "小説"},
+    {"id": "font",    "name": "フォント",        "emoji": "✍️", "query": "フォント"},
+    {"id": "assets",  "name": "素材・ツール",    "emoji": "🔧", "query": "素材"},
+    {"id": "handmade","name": "ハンドメイド",    "emoji": "🧵", "query": "ハンドメイド"},
 ]
 
 SORT_OPTIONS = [
@@ -117,17 +117,22 @@ async def fetch_product(item_id: int) -> ProductInfo:
 
 
 async def search_category(
-    category_id: Optional[int] = None,
+    category_id: Optional[str] = None,
     sort: str = "new",
     page: int = 1,
 ) -> tuple[list[ProductInfo], int]:
     """
-    Fetch products from Booth's search API filtered by category.
+    Fetch products from Booth's search API using keyword search per category.
     Returns (products, total_pages).
     """
-    params: dict = {"q": "", "sort": sort, "page": page}
-    if category_id is not None:
-        params["category_id"] = category_id
+    # Look up the query string for this category
+    query = ""
+    for cat in CATEGORIES:
+        if cat["id"] == category_id:
+            query = cat.get("query", "")
+            break
+
+    params: dict = {"q": query, "sort": sort, "page": page}
 
     async with httpx.AsyncClient(follow_redirects=True, timeout=15) as client:
         resp = await client.get(SEARCH_API, params=params, headers=HEADERS)

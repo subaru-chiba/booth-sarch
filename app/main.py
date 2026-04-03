@@ -80,7 +80,7 @@ async def index(request: Request):
 @app.get("/browse", response_class=HTMLResponse)
 async def browse(
     request: Request,
-    category_id: Optional[int] = Query(default=None),
+    category_id: Optional[str] = Query(default=None),
     sort: str = Query(default="new"),
     page: int = Query(default=1),
 ):
