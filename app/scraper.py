@@ -13,11 +13,13 @@ from typing import Optional
 import httpx
 
 ITEM_API   = "https://booth.pm/ja/items/{item_id}.json"
-SEARCH_API = "https://booth.pm/ja/search.json"
+SEARCH_URL = "https://booth.pm/ja/search"
 HEADERS = {
-    "User-Agent": "Mozilla/5.0 (compatible; booth-sarch/1.0)",
-    "Accept": "application/json",
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Accept": "application/json, text/javascript, */*; q=0.01",
     "Accept-Language": "ja,en;q=0.9",
+    "X-Requested-With": "XMLHttpRequest",
+    "Referer": "https://booth.pm/",
 }
 
 # ---------------------------------------------------------------------------
@@ -135,8 +137,9 @@ async def search_category(
     params: dict = {"q": query, "sort": sort, "page": page}
 
     async with httpx.AsyncClient(follow_redirects=True, timeout=15) as client:
-        resp = await client.get(SEARCH_API, params=params, headers=HEADERS)
+        resp = await client.get(SEARCH_URL, params=params, headers=HEADERS)
         resp.raise_for_status()
+        # Booth returns JSON when X-Requested-With: XMLHttpRequest is set
         data = resp.json()
 
     items = data.get("items") or []
