@@ -14,8 +14,14 @@ from typing import Optional
 import httpx
 from bs4 import BeautifulSoup
 
-ITEM_API   = "https://booth.pm/ja/items/{item_id}.json"
-SEARCH_URL = "https://booth.pm/ja/search"
+ITEM_API = "https://booth.pm/ja/items/{item_id}.json"
+
+# Candidate search URLs tried in order until one succeeds
+SEARCH_URL_CANDIDATES = [
+    "https://booth.pm/search",
+    "https://booth.pm/ja/search",
+    "https://booth.pm/en/search",
+]
 
 HEADERS_JSON = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -150,24 +156,46 @@ async def search_category(
     params: dict = {"q": query, "sort": sort, "page": page}
 
     async with httpx.AsyncClient(follow_redirects=True, timeout=20) as client:
-        # 1) Try JSON API
-        try:
-            resp = await client.get(SEARCH_URL, params=params, headers=HEADERS_JSON)
-            if resp.status_code == 200:
-                ct = resp.headers.get("content-type", "")
-                if "json" in ct:
-                    data = resp.json()
-                    items = data.get("items") or []
-                    total = int(data.get("total_pages") or data.get("pages") or 1)
-                    return [_parse_item_dict(i) for i in items], total
-        except Exception:
-            pass
+        last_exc: Exception = RuntimeError("no candidates tried")
 
-        # 2) Fall back: fetch HTML page and scrape
-        resp = await client.get(SEARCH_URL, params=params, headers=HEADERS_HTML)
-        resp.raise_for_status()
+        for base_url in SEARCH_URL_CANDIDATES:
+            # 1) Try JSON API
+            try:
+                resp = await client.get(base_url, params=params, headers=HEADERS_JSON)
+                if resp.status_code == 200:
+                    ct = resp.headers.get("content-type", "")
+                    if "json" in ct:
+                        data = resp.json()
+                        items = data.get("items") or []
+                        total = int(data.get("total_pages") or data.get("pages") or 1)
+                        return [_parse_item_dict(i) for i in items], total
+                    # HTML response — scrape it
+                    return _parse_search_html(resp.text)
+                if resp.status_code not in (301, 302, 404):
+                    resp.raise_for_status()
+            except httpx.HTTPStatusError as e:
+                last_exc = e
+                continue
+            except Exception as e:
+                last_exc = e
+                continue
 
-    return _parse_search_html(resp.text)
+            # 2) Try HTML
+            try:
+                resp = await client.get(base_url, params=params, headers=HEADERS_HTML)
+                if resp.status_code == 200:
+                    return _parse_search_html(resp.text)
+                if resp.status_code == 404:
+                    continue
+                resp.raise_for_status()
+            except httpx.HTTPStatusError as e:
+                last_exc = e
+                continue
+            except Exception as e:
+                last_exc = e
+                continue
+
+        raise last_exc
 
 
 def _parse_search_html(html: str) -> tuple[list[ProductInfo], int]:
